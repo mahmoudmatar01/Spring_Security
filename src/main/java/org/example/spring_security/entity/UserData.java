@@ -28,6 +28,7 @@ public class UserData implements UserDetails {
     private String email;
     private String password;
     private Role role;
+    @Column(length = 1000)
     private String accessToken;
 
     @Override
