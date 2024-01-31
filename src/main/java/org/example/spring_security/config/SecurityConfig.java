@@ -22,7 +22,6 @@ public class SecurityConfig {
 
 
     @Bean
-    @Profile({"local"})
     public SecurityFilterChain notAuthenticatedFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
