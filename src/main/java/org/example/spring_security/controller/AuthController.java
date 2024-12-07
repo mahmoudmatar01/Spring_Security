@@ -1,11 +1,13 @@
 package org.example.spring_security.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.example.spring_security.dto.request.RefreshTokenRequestDto;
 import org.example.spring_security.dto.request.UserLoginRequestDto;
 import org.example.spring_security.dto.request.UserRegistrationRequestDto;
+import org.example.spring_security.dto.response.ApiResponse;
 import org.example.spring_security.service.AuthService;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,28 +18,52 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @PostMapping(value= "/user/register", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<?> registerUser(@ModelAttribute UserRegistrationRequestDto registerRequest) {
-
+    @PostMapping(value= "/user/register")
+    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegistrationRequestDto registerRequest) {
         var registeredUser = authService.registerUser(registerRequest);
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(registeredUser);
+        var response = ApiResponse.builder()
+                .statusCode(HttpStatus.OK.value())
+                .isSuccess(true)
+                .data(registeredUser)
+                .message("User registered successfully")
+                .build();
+        return ResponseEntity.ok(response);
     }
 
-    @PostMapping(value= "/admin/register", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<?> registerAdmin(@ModelAttribute UserRegistrationRequestDto registerRequest) {
-
+    @PostMapping(value= "/admin/register")
+    public ResponseEntity<?> registerAdmin(@Valid @RequestBody UserRegistrationRequestDto registerRequest) {
         var admin = authService.registerAdmin(registerRequest);
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(admin);
+        var response = ApiResponse.builder()
+                .statusCode(HttpStatus.OK.value())
+                .isSuccess(true)
+                .data(admin)
+                .message("Admin registered successfully")
+                .build();
+        return ResponseEntity.ok(response);
     }
 
-    @PostMapping(value = "/login", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<?> loginUser( @ModelAttribute UserLoginRequestDto loginRequest) {
+    @PostMapping(value = "/login")
+    public ResponseEntity<?> loginUser(@Valid @RequestBody UserLoginRequestDto loginRequest) {
+        var loginResponse = authService.loginUser(loginRequest);
+        var response = ApiResponse.builder()
+                .statusCode(HttpStatus.OK.value())
+                .isSuccess(true)
+                .data(loginResponse)
+                .message("Login successful")
+                .build();
+        return ResponseEntity.ok(response);
+    }
 
-        String authToken = authService.loginUser(loginRequest);
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(authToken);
+    @PostMapping(value = "/refresh-token")
+    public ResponseEntity<ApiResponse<?>> refreshToken(@Valid @RequestBody RefreshTokenRequestDto refreshTokenRequestDto) {
+        var refreshResponse = authService.refreshToken(refreshTokenRequestDto);
+        var response = ApiResponse.builder()
+                .statusCode(HttpStatus.OK.value())
+                .isSuccess(true)
+                .data(refreshResponse)
+                .message("Token refreshed successfully")
+                .build();
+        return ResponseEntity.ok(response);
     }
 
 }

@@ -1,10 +1,7 @@
 package org.example.spring_security.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.example.spring_security.enums.Role;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -12,24 +9,27 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
-@Table(name = "users")
-@Data
-@AllArgsConstructor
+@Table(name = "USERS",  indexes = {
+        @Index(name = "idx_user_email", columnList = "email", unique = true),
+        @Index(name = "idx_user_uuid", columnList = "uuidCode", unique = true)}
+)
+@RequiredArgsConstructor
 @Builder
-@NoArgsConstructor
-public class UserData implements UserDetails {
+@AllArgsConstructor
+@Getter
+public class User implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
+    private UUID uuidCode;
     private String firstName;
     private String lastName;
     private String email;
     private String password;
     private Role role;
-    @Column(length = 1000)
-    private String accessToken;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
