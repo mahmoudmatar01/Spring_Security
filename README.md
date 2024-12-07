@@ -2,10 +2,9 @@
 
 ## Overview
 
-Security is a crucial aspect of software application design, ensuring that only authorized users can access secured resources. When it comes to securing an application, two fundamental aspects to consider are **authentication** and **authorization**.
+Security is crucial to software application design, ensuring only authorized users can access secured resources. Two fundamental aspects to consider when securing an application are authentication and authorization.
 
 - **Authentication:** The process of verifying the user's identity, typically by requesting credentials.
-  
 - **Authorization:** The process of verifying whether a user is allowed to perform a specific activity.
 
 **Spring Security** is a powerful and flexible security framework designed for securing Java-based web applications. While commonly used with Spring-based applications, it can also be employed to secure non-Spring-based web applications.
@@ -71,7 +70,7 @@ The first step in building our secure Spring application is to set up the projec
 
 
  <img src="https://miro.medium.com/v2/resize:fit:828/format:webp/1*kODiNBLonXUX__jgiZS5yw.png" alt="Generate Project">
- Spring intializr
+ Spring initializer
 
 Now that we have our project set up, unzip the archive and open it in your chosen development environment. We’re ready to start building our secure Spring application.
 
@@ -84,22 +83,26 @@ With our Spring project set up, it’s time to define the data model for our app
 The first entity we’ll define is the User entity, which will represent user data in our application. Here's an example of how to create a simple User entity:
 
 ```java
+
 @Entity
-@Table(name = "users")
-@Data
-@AllArgsConstructor
+@Table(name = "USERS",  indexes = {
+        @Index(name = "idx_user_email", columnList = "email", unique = true),
+        @Index(name = "idx_user_uuid", columnList = "uuidCode", unique = true)}
+)
+@RequiredArgsConstructor
 @Builder
-@NoArgsConstructor
-public class UserData implements UserDetails {
+@AllArgsConstructor
+@Getter
+public class User implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
+    private UUID uuidCode;
     private String firstName;
     private String lastName;
     private String email;
     private String password;
     private Role role;
-    private String accessToken;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -135,6 +138,7 @@ public class UserData implements UserDetails {
         return true;
     }
 }
+
 ```
 
 In this example, we’ve used JPA annotations to mark the class as an entity `(@Entity)`. The `@Id` annotation designates the primary key.
@@ -145,7 +149,7 @@ Create the UserRepository Interface: Create the UserRepository interface and ext
 
 ```java
 @Repository
-public interface UserRepository extends JpaRepository<UserData,Long> {
+public interface UserRepository extends JpaRepository<User,Long> {
     Optional<UserData>findByEmail(String email);
 }
 ```
@@ -162,40 +166,41 @@ Spring Security’s power lies in its flexibility and configurability. In this s
 In your Spring Boot project, create a configuration class to customize Spring Security settings. You can do this by extending` WebSecurityConfigurerAdapter` and overriding its methods. Here's a basic example:
 
 ```java
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
     private final JwtAuthenticationFilter authFilter;
     private final AuthenticationProvider authenticationProvider;
-
+    private final CustomAccessDeniedHandler accessDeniedHandler;
 
     @Bean
-    public SecurityFilterChain notAuthenticatedFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain authenticatedFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(request ->
                         request.requestMatchers(
-                                        "/api/v*/**"
+                                        "/api/v1/auth/**",
+                                        "/v3/api-docs/**",
+                                        "/swagger-ui/**"
                                 ).permitAll()
+                                .requestMatchers("/api/v1/user").hasAnyAuthority(Role.USER.name())
+                                .requestMatchers("/api/v1/admin").hasAnyAuthority(Role.ADMIN.name())
                                 .anyRequest()
                                 .authenticated())
+                .exceptionHandling(e->e.accessDeniedHandler(accessDeniedHandler)
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .sessionManagement(manager -> manager.sessionCreationPolicy(STATELESS))
                 .authenticationProvider(authenticationProvider)
                 .addFilterBefore(
                         authFilter, UsernamePasswordAuthenticationFilter.class);
 
-
         return http.build();
     }
 
 }
+
 ```
 
 In this example:
@@ -207,65 +212,6 @@ In this example:
 - The `/admin/**` path is restricted to users with the` “ADMIN” `role.
 - All other requests require authentication.
 - A custom` login` page is specified, and `logout` is permitted.
-
-### UserDetailsService
-
-To load user details from your database, you can create a custom `UserDetailsService` implementation. Here's a simplified example:
-
-```java
-@Service
-@RequiredArgsConstructor
-public class AuthServiceImpl implements AuthService {
-
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtServiceImpl jwtTokenUtils;
-    private final UserRegisterDtoToUserMapper userRegisterDtoToUserMapper;
-    private final UserToUserResponseDtoMapper userResponseDtoMapper;
-
-    @Override
-    public UserRegisterResponseDto registerUser(UserRegistrationRequestDto registerRequest) {
-        if(!registerRequest.password().equals(registerRequest.confirmPassword())){
-            throw new RuntimeException("passwords aren't match");
-        }
-        UserData user = userRegisterDtoToUserMapper.apply(registerRequest);
-        userRepository.save(user);
-        return userResponseDtoMapper.apply(user);
-    }
-
-    @Override
-    public UserRegisterResponseDto registerAdmin(UserRegistrationRequestDto adminDto) {
-        if(!adminDto.password().equals(adminDto.confirmPassword())){
-            throw new RuntimeException("passwords aren't match");
-        }
-        UserData user = userRegisterDtoToUserMapper.apply(adminDto, Role.User_Admin);
-        userRepository.save(user);
-        return userResponseDtoMapper.apply(user);
-    }
-    @Override
-    public String loginUser(UserLoginRequestDto loginRequest) {
-        UserData user = userRepository.findByEmail(loginRequest.email()).orElseThrow(
-                ()-> new RuntimeException("user not found")
-        );
-        checkPasswordsMatch(loginRequest.password(), user.getPassword());
-        String jwtToken = jwtTokenUtils.generateToken(user);
-        user.setAccessToken(jwtToken);
-        user=userRepository.save(user);
-        return user.getAccessToken();
-    }
-
-  private void checkPasswordsMatch(String pass1,String pass2){
-      if (!passwordEncoder.matches(pass1, pass2)) {
-          throw new BadCredentialsException("Invalid password");
-      }
-  }
-
-
-}
-```
-
-In this example, we retrieve the user details from the database using a custom `UserRepository` and build a` UserDetails` object.
-
 
 ### Password Encoding
 
@@ -312,47 +258,4 @@ public class ApplicationConfig {
 
 }
 
-```
-
-### Creating Controllers
-Now that we have our database model defined, it’s time to create controllers to handle incoming HTTP requests and interact with our data. In a Spring application, controllers are responsible for processing requests, invoking the necessary business logic, and returning responses.
-
-#### Spring MVC Controllers
-Spring provides a powerful and flexible web framework called Spring `MVC (Model-View-Controller)` for building web applications. In Spring MVC, controllers are typically annotated with `@Controller` and handle specific request mappings.
-
-Here’s an example of a simple controller for managing user-related operations:
-
-```java
-@RestController
-@RequestMapping("/api/v1/auth")
-@RequiredArgsConstructor
-public class AuthController {
-
-    private final AuthService authService;
-
-    @PostMapping(value= "/user/register", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<?> registerUser(@ModelAttribute UserRegistrationRequestDto registerRequest) {
-
-        var registeredUser = authService.registerUser(registerRequest);
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(registeredUser);
-    }
-
-    @PostMapping(value= "/admin/register", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<?> registerAdmin(@ModelAttribute UserRegistrationRequestDto registerRequest) {
-
-        var admin = authService.registerAdmin(registerRequest);
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(admin);
-    }
-
-    @PostMapping(value = "/login", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<?> loginUser( @ModelAttribute UserLoginRequestDto loginRequest) {
-
-        String authToken = authService.loginUser(loginRequest);
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(authToken);
-    }
-
-}
 ```
