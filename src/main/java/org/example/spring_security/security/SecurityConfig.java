@@ -30,12 +30,12 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(request ->
                         request.requestMatchers(
-                                        "/api/v1/auth/**",
-                                        "/v3/api-docs/**",
+                                        "/api/v*/auth/**",
+                                        "/v*/api-docs/**",
                                         "/swagger-ui/**"
                                 ).permitAll()
-                                .requestMatchers("/api/v1/user").hasAnyAuthority(Role.USER.name())
-                                .requestMatchers("/api/v1/admin").hasAnyAuthority(Role.ADMIN.name())
+                                .requestMatchers("/api/v*/user").hasAnyAuthority(Role.USER.name())
+                                .requestMatchers("/api/v*/admin").hasAnyAuthority(Role.ADMIN.name())
                                 .anyRequest()
                                 .authenticated())
                 .exceptionHandling(e->e.accessDeniedHandler(accessDeniedHandler)
